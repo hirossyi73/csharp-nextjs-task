@@ -52,3 +52,19 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# vscode
+.vscode/settings.json
+
+# 環境変数ファイル（.env.example は追跡する）
+.env
+
+# その他
+tmp/
+
+# Node.js / Next.js
+node_modules/
+.next/
+out/
+.env.local
+.env*.local
