@@ -1,8 +1,6 @@
-/** ユーザー登録リクエスト */
+/** ユーザー登録リクエスト（メアドのみで仮登録） */
 export interface RegisterRequest {
   email: string;
-  password: string;
-  passwordConfirmation: string;
 }
 
 /** ログインリクエスト */
@@ -11,9 +9,11 @@ export interface LoginRequest {
   password: string;
 }
 
-/** メール確認リクエスト */
+/** メール確認リクエスト（パスワード設定で本登録） */
 export interface VerifyEmailRequest {
   token: string;
+  password: string;
+  passwordConfirmation: string;
 }
 
 /** パスワードリセット要求リクエスト */

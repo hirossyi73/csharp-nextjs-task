@@ -10,7 +10,7 @@ import {
 } from "react";
 import * as authApi from "@/lib/api/auth";
 import { getAccessToken } from "@/lib/api/client";
-import type { LoginRequest, RegisterRequest } from "@/types";
+import type { LoginRequest } from "@/types";
 
 /** 認証状態 */
 export interface AuthState {
@@ -25,7 +25,7 @@ export interface AuthContextValue extends AuthState {
   /** ログイン */
   login: (data: LoginRequest) => Promise<void>;
   /** ユーザー登録 */
-  register: (data: RegisterRequest) => Promise<string>;
+  register: (email: string) => Promise<string>;
   /** ログアウト */
   logout: () => Promise<void>;
 }
@@ -57,8 +57,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthenticated(true);
   }, []);
 
-  const register = useCallback(async (data: RegisterRequest) => {
-    const response = await authApi.register(data);
+  const register = useCallback(async (email: string) => {
+    const response = await authApi.register({ email });
     return response.message;
   }, []);
 

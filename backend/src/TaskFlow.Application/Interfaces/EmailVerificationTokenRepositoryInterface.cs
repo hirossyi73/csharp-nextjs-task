@@ -21,4 +21,9 @@ public interface EmailVerificationTokenRepositoryInterface
     /// メール確認トークンを更新する
     /// </summary>
     Task UpdateAsync(EmailVerificationToken token);
+
+    /// <summary>
+    /// 指定ユーザーの未使用トークンを全て無効化する
+    /// </summary>
+    Task InvalidateByUserIdAsync(Guid userId);
 }

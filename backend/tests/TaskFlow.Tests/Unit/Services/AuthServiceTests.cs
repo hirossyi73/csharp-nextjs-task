@@ -49,38 +49,36 @@ public class AuthServiceTests
 
     [Fact]
     /// <summary>
-    /// 有効な入力で仮登録が成功し、ユーザー作成とメール送信が行われることを検証する
+    /// 有効なメアドで仮登録が成功し、ユーザー作成とメール送信が行われることを検証する
     /// </summary>
-    public async Task RegisterAsync_有効な入力_仮登録成功しメール送信される()
+    public async Task RegisterAsync_有効なメール_仮登録成功しメール送信される()
     {
         _userRepository.Setup(r => r.FindByEmailAsync(It.IsAny<string>()))
             .ReturnsAsync((User?)null);
-        _passwordHasher.Setup(h => h.HashPassword(It.IsAny<string>()))
-            .Returns("hashed_password");
         _userRepository.Setup(r => r.CreateAsync(It.IsAny<User>()))
             .ReturnsAsync((User u) => u);
         _emailVerificationTokenRepository.Setup(r => r.CreateAsync(It.IsAny<EmailVerificationToken>()))
             .ReturnsAsync((EmailVerificationToken t) => t);
 
-        var result = await _sut.RegisterAsync("test@example.com", "Password123");
+        var result = await _sut.RegisterAsync("test@example.com");
 
         result.IsSuccess.Should().BeTrue();
         _userRepository.Verify(r => r.CreateAsync(It.Is<User>(u =>
-            u.Email == "test@example.com" && u.PasswordHash == "hashed_password" && !u.IsEmailVerified)), Times.Once);
+            u.Email == "test@example.com" && u.PasswordHash == null && !u.IsEmailVerified)), Times.Once);
         _emailVerificationTokenRepository.Verify(r => r.CreateAsync(It.IsAny<EmailVerificationToken>()), Times.Once);
         _emailService.Verify(s => s.SendEmailVerificationAsync("test@example.com", It.IsAny<string>()), Times.Once);
     }
 
     [Fact]
     /// <summary>
-    /// 重複メールアドレスで登録した場合にエラーが返されることを検証する
+    /// 本登録済みメールアドレスで登録した場合にエラーが返されることを検証する
     /// </summary>
-    public async Task RegisterAsync_重複メールアドレス_エラーが返される()
+    public async Task RegisterAsync_本登録済みメールアドレス_エラーが返される()
     {
         _userRepository.Setup(r => r.FindByEmailAsync("existing@example.com"))
-            .ReturnsAsync(new User { Email = "existing@example.com", PasswordHash = "hash" });
+            .ReturnsAsync(new User { Email = "existing@example.com", PasswordHash = "hash", IsEmailVerified = true });
 
-        var result = await _sut.RegisterAsync("existing@example.com", "Password123");
+        var result = await _sut.RegisterAsync("existing@example.com");
 
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("AUTH_EMAIL_ALREADY_EXISTS");
@@ -91,21 +89,23 @@ public class AuthServiceTests
 
     [Fact]
     /// <summary>
-    /// 有効なトークンでメール確認が成功することを検証する
+    /// 有効なトークンとパスワードで本登録が成功することを検証する
     /// </summary>
     public async Task VerifyEmailAsync_有効なトークン_本登録成功()
     {
-        var user = new User { Email = "test@example.com", PasswordHash = "hash", IsEmailVerified = false };
+        var user = new User { Email = "test@example.com", PasswordHash = null, IsEmailVerified = false };
         var token = createVerificationToken(user, isUsed: false, isExpired: false);
 
         _emailVerificationTokenRepository.Setup(r => r.FindByTokenHashAsync(It.IsAny<string>()))
             .ReturnsAsync(token);
+        _passwordHasher.Setup(h => h.HashPassword("Password123")).Returns("hashed_password");
 
-        var result = await _sut.VerifyEmailAsync("valid-token");
+        var result = await _sut.VerifyEmailAsync("valid-token", "Password123");
 
         result.IsSuccess.Should().BeTrue();
         token.IsUsed.Should().BeTrue();
         user.IsEmailVerified.Should().BeTrue();
+        user.PasswordHash.Should().Be("hashed_password");
         _emailVerificationTokenRepository.Verify(r => r.UpdateAsync(token), Times.Once);
         _userRepository.Verify(r => r.UpdateAsync(user), Times.Once);
     }
@@ -119,7 +119,7 @@ public class AuthServiceTests
         _emailVerificationTokenRepository.Setup(r => r.FindByTokenHashAsync(It.IsAny<string>()))
             .ReturnsAsync((EmailVerificationToken?)null);
 
-        var result = await _sut.VerifyEmailAsync("invalid-token");
+        var result = await _sut.VerifyEmailAsync("invalid-token", "Password123");
 
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("AUTH_TOKEN_INVALID");
@@ -137,7 +137,7 @@ public class AuthServiceTests
         _emailVerificationTokenRepository.Setup(r => r.FindByTokenHashAsync(It.IsAny<string>()))
             .ReturnsAsync(token);
 
-        var result = await _sut.VerifyEmailAsync("used-token");
+        var result = await _sut.VerifyEmailAsync("used-token", "Password123");
 
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("AUTH_TOKEN_ALREADY_USED");
@@ -155,10 +155,84 @@ public class AuthServiceTests
         _emailVerificationTokenRepository.Setup(r => r.FindByTokenHashAsync(It.IsAny<string>()))
             .ReturnsAsync(token);
 
-        var result = await _sut.VerifyEmailAsync("expired-token");
+        var result = await _sut.VerifyEmailAsync("expired-token", "Password123");
 
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("AUTH_TOKEN_EXPIRED");
+    }
+
+
+    [Fact]
+    /// <summary>
+    /// 仮登録済みユーザーが再登録すると確認メールが再送信されることを検証する
+    /// </summary>
+    public async Task RegisterAsync_仮登録済みメールアドレス_確認メールが再送信される()
+    {
+        var existingUser = new User { Id = Guid.NewGuid(), Email = "test@example.com", PasswordHash = null, IsEmailVerified = false };
+        _userRepository.Setup(r => r.FindByEmailAsync("test@example.com"))
+            .ReturnsAsync(existingUser);
+        _emailVerificationTokenRepository.Setup(r => r.CreateAsync(It.IsAny<EmailVerificationToken>()))
+            .ReturnsAsync((EmailVerificationToken t) => t);
+
+        var result = await _sut.RegisterAsync("test@example.com");
+
+        result.IsSuccess.Should().BeTrue();
+        _emailVerificationTokenRepository.Verify(r => r.InvalidateByUserIdAsync(existingUser.Id), Times.Once);
+        _emailService.Verify(s => s.SendEmailVerificationAsync("test@example.com", It.IsAny<string>()), Times.Once);
+        _userRepository.Verify(r => r.CreateAsync(It.IsAny<User>()), Times.Never);
+    }
+
+    [Fact]
+    /// <summary>
+    /// 既存パスワードありでパスワード未提供の場合、メール確認のみ成功することを検証する（後方互換性）
+    /// </summary>
+    public async Task VerifyEmailAsync_既存パスワードありでパスワード未提供_メール確認のみ成功()
+    {
+        var user = new User { Email = "test@example.com", PasswordHash = "existing_hash", IsEmailVerified = false };
+        var token = createVerificationToken(user, isUsed: false, isExpired: false);
+
+        _emailVerificationTokenRepository.Setup(r => r.FindByTokenHashAsync(It.IsAny<string>()))
+            .ReturnsAsync(token);
+
+        var result = await _sut.VerifyEmailAsync("valid-token", null);
+
+        result.IsSuccess.Should().BeTrue();
+        user.IsEmailVerified.Should().BeTrue();
+        user.PasswordHash.Should().Be("existing_hash");
+    }
+
+    [Fact]
+    /// <summary>
+    /// パスワード未提供かつ PasswordHash 未設定の場合、エラーが返されることを検証する
+    /// </summary>
+    public async Task VerifyEmailAsync_パスワード未提供かつPasswordHash未設定_エラーが返される()
+    {
+        var user = new User { Email = "test@example.com", PasswordHash = null, IsEmailVerified = false };
+        var token = createVerificationToken(user, isUsed: false, isExpired: false);
+
+        _emailVerificationTokenRepository.Setup(r => r.FindByTokenHashAsync(It.IsAny<string>()))
+            .ReturnsAsync(token);
+
+        var result = await _sut.VerifyEmailAsync("valid-token", null);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("AUTH_PASSWORD_REQUIRED");
+    }
+
+    [Fact]
+    /// <summary>
+    /// パスワード未設定ユーザーがログインを試みるとエラーが返されることを検証する
+    /// </summary>
+    public async Task LoginAsync_パスワード未設定ユーザー_エラーが返される()
+    {
+        var user = new User { Email = "test@example.com", PasswordHash = null, IsEmailVerified = false };
+        _userRepository.Setup(r => r.FindByEmailAsync("test@example.com")).ReturnsAsync(user);
+
+        var result = await _sut.LoginAsync("test@example.com", "Password123");
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("AUTH_REGISTRATION_INCOMPLETE");
+        _passwordHasher.Verify(h => h.VerifyPassword(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 
     // ========== LoginAsync ==========

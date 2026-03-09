@@ -1,48 +1,71 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Alert,
   Box,
+  Button,
   CircularProgress,
   Container,
   Link as MuiLink,
   Paper,
+  TextField,
   Typography,
 } from "@mui/material";
 import NextLink from "next/link";
 import { verifyEmail } from "@/lib/api/auth";
 import { getErrorMessage } from "@/lib/api/client";
+import {
+  validatePassword,
+  validatePasswordConfirmation,
+} from "@/lib/utils/validation";
 
-/** メール確認ページ */
+/** メール確認・パスワード設定ページ */
 export default function VerifyEmailPage() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
-  const [status, setStatus] = useState<"loading" | "success" | "error">(
-    "loading"
+  const [password, setPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
+  const [status, setStatus] = useState<"form" | "submitting" | "success" | "error">(
+    token ? "form" : "error"
   );
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(
+    token ? "" : "トークンが指定されていません"
+  );
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    if (!token) {
-      setStatus("error");
-      setMessage("トークンが指定されていません");
+  /** フォーム送信ハンドラー */
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setFieldErrors({});
+    setMessage("");
+
+    const errors: Record<string, string> = {};
+    const passwordError = validatePassword(password);
+    if (passwordError) errors.password = passwordError;
+    const confirmError = validatePasswordConfirmation(password, passwordConfirmation);
+    if (confirmError) errors.passwordConfirmation = confirmError;
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
       return;
     }
 
-    const verify = async () => {
-      try {
-        const response = await verifyEmail({ token });
-        setStatus("success");
-        setMessage(response.message);
-      } catch (err) {
-        setStatus("error");
-        setMessage(getErrorMessage(err));
-      }
-    };
-    verify();
-  }, [token]);
+    setStatus("submitting");
+    try {
+      const response = await verifyEmail({
+        token: token!,
+        password,
+        passwordConfirmation,
+      });
+      setStatus("success");
+      setMessage(response.message);
+    } catch (err) {
+      setStatus("error");
+      setMessage(getErrorMessage(err));
+    }
+  };
 
   return (
     <Container maxWidth="sm">
@@ -52,26 +75,77 @@ export default function VerifyEmailPage() {
         alignItems="center"
         minHeight="100vh"
       >
-        <Paper elevation={3} sx={{ p: 4, width: "100%", textAlign: "center" }}>
+        <Paper elevation={3} sx={{ p: 4, width: "100%" }}>
           <Typography
             variant="h4"
             component="h1"
             textAlign="center"
             gutterBottom
           >
-            メール確認
+            アカウント登録
           </Typography>
 
-          {status === "loading" && <CircularProgress sx={{ my: 4 }} />}
+          {status === "form" && (
+            <Box component="form" onSubmit={handleSubmit} noValidate>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                パスワードを設定して登録を完了してください。
+              </Typography>
+
+              <TextField
+                label="パスワード"
+                type="password"
+                fullWidth
+                margin="normal"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                error={!!fieldErrors.password}
+                helperText={
+                  fieldErrors.password || "8文字以上、大文字・小文字・数字を含む"
+                }
+                autoComplete="new-password"
+                autoFocus
+              />
+
+              <TextField
+                label="パスワード確認"
+                type="password"
+                fullWidth
+                margin="normal"
+                value={passwordConfirmation}
+                onChange={(e) => setPasswordConfirmation(e.target.value)}
+                error={!!fieldErrors.passwordConfirmation}
+                helperText={fieldErrors.passwordConfirmation}
+                autoComplete="new-password"
+              />
+
+              <Button
+                type="submit"
+                fullWidth
+                variant="contained"
+                size="large"
+                sx={{ mt: 2, mb: 2 }}
+              >
+                登録を完了する
+              </Button>
+            </Box>
+          )}
+
+          {status === "submitting" && (
+            <Box textAlign="center" sx={{ my: 4 }}>
+              <CircularProgress />
+            </Box>
+          )}
 
           {status === "success" && (
             <>
               <Alert severity="success" sx={{ mb: 2 }}>
                 {message}
               </Alert>
-              <MuiLink component={NextLink} href="/login" variant="body1">
-                ログインへ
-              </MuiLink>
+              <Box textAlign="center">
+                <MuiLink component={NextLink} href="/login" variant="body1">
+                  ログインへ
+                </MuiLink>
+              </Box>
             </>
           )}
 
@@ -80,9 +154,11 @@ export default function VerifyEmailPage() {
               <Alert severity="error" sx={{ mb: 2 }}>
                 {message}
               </Alert>
-              <MuiLink component={NextLink} href="/login" variant="body1">
-                ログインへ戻る
-              </MuiLink>
+              <Box textAlign="center">
+                <MuiLink component={NextLink} href="/login" variant="body1">
+                  ログインへ戻る
+                </MuiLink>
+              </Box>
             </>
           )}
         </Paper>

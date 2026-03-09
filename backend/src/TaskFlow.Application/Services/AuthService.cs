@@ -41,49 +41,44 @@ public class AuthService : AuthServiceInterface
     }
 
     /// <summary>
-    /// ユーザーを仮登録し、確認メールを送信する
+    /// メアドのみで仮登録し、確認メールを送信する。仮登録済みの場合は再送信する
     /// </summary>
-    public async Task<Result> RegisterAsync(string email, string password)
+    public async Task<Result> RegisterAsync(string email)
     {
         var existingUser = await _userRepository.FindByEmailAsync(email);
+
         if (existingUser != null)
         {
-            return Result.Failure(new AppError("AUTH_EMAIL_ALREADY_EXISTS", "このメールアドレスは既に登録されています"));
+            if (existingUser.IsEmailVerified)
+            {
+                return Result.Failure(new AppError("AUTH_EMAIL_ALREADY_EXISTS", "このメールアドレスは既に登録されています"));
+            }
+
+            // 仮登録済みユーザーには確認メールを再送信する
+            await _emailVerificationTokenRepository.InvalidateByUserIdAsync(existingUser.Id);
+            await sendVerificationEmail(existingUser);
+            return Result.Success();
         }
 
         var user = new User
         {
             Email = email,
-            PasswordHash = _passwordHasher.HashPassword(password),
+            PasswordHash = null,
             IsEmailVerified = false,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
 
         await _userRepository.CreateAsync(user);
-
-        var token = generateSecureToken();
-        var tokenHash = hashToken(token);
-
-        var verificationToken = new EmailVerificationToken
-        {
-            UserId = user.Id,
-            TokenHash = tokenHash,
-            ExpiresAt = DateTime.UtcNow.AddHours(24),
-            IsUsed = false,
-            CreatedAt = DateTime.UtcNow
-        };
-
-        await _emailVerificationTokenRepository.CreateAsync(verificationToken);
-        await _emailService.SendEmailVerificationAsync(email, token);
+        await sendVerificationEmail(user);
 
         return Result.Success();
     }
 
     /// <summary>
-    /// メール確認トークンを検証し、ユーザーを本登録する
+    /// メール確認トークンを検証し、パスワードを設定して本登録する
     /// </summary>
-    public async Task<Result> VerifyEmailAsync(string token)
+    public async Task<Result> VerifyEmailAsync(string token, string? password)
     {
         var tokenHash = hashToken(token);
         var verificationToken = await _emailVerificationTokenRepository.FindByTokenHashAsync(tokenHash);
@@ -103,10 +98,23 @@ public class AuthService : AuthServiceInterface
             return Result.Failure(new AppError("AUTH_TOKEN_EXPIRED", "トークンの有効期限が切れています"));
         }
 
+        var user = verificationToken.User;
+
+        // パスワード未設定のユーザーにはパスワード必須
+        if (user.PasswordHash is null && string.IsNullOrEmpty(password))
+        {
+            return Result.Failure(new AppError("AUTH_PASSWORD_REQUIRED", "パスワードを設定してください"));
+        }
+
         verificationToken.IsUsed = true;
         await _emailVerificationTokenRepository.UpdateAsync(verificationToken);
 
-        var user = verificationToken.User;
+        // パスワードが提供された場合のみ設定する（後方互換性: 旧フローのユーザーはパスワード設定済み）
+        if (!string.IsNullOrEmpty(password))
+        {
+            user.PasswordHash = _passwordHasher.HashPassword(password);
+        }
+
         user.IsEmailVerified = true;
         user.UpdatedAt = DateTime.UtcNow;
         await _userRepository.UpdateAsync(user);
@@ -121,7 +129,19 @@ public class AuthService : AuthServiceInterface
     {
         var user = await _userRepository.FindByEmailAsync(email);
 
-        if (user == null || !_passwordHasher.VerifyPassword(password, user.PasswordHash))
+        if (user == null)
+        {
+            return Result<LoginResult>.Failure(
+                new AppError("AUTH_CREDENTIALS_INVALID", "メールアドレスまたはパスワードが正しくありません"));
+        }
+
+        if (user.PasswordHash is null)
+        {
+            return Result<LoginResult>.Failure(
+                new AppError("AUTH_REGISTRATION_INCOMPLETE", "登録が完了していません。メールを確認してパスワードを設定してください"));
+        }
+
+        if (!_passwordHasher.VerifyPassword(password, user.PasswordHash!))
         {
             return Result<LoginResult>.Failure(
                 new AppError("AUTH_CREDENTIALS_INVALID", "メールアドレスまたはパスワードが正しくありません"));
@@ -269,6 +289,27 @@ public class AuthService : AuthServiceInterface
         await _refreshTokenRepository.RevokeAllByUserIdAsync(user.Id);
 
         return Result.Success();
+    }
+
+    /// <summary>
+    /// 確認メールのトークン生成・保存・送信を行う
+    /// </summary>
+    private async Task sendVerificationEmail(User user)
+    {
+        var token = generateSecureToken();
+        var tokenHash = hashToken(token);
+
+        var verificationToken = new EmailVerificationToken
+        {
+            UserId = user.Id,
+            TokenHash = tokenHash,
+            ExpiresAt = DateTime.UtcNow.AddHours(24),
+            IsUsed = false,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _emailVerificationTokenRepository.CreateAsync(verificationToken);
+        await _emailService.SendEmailVerificationAsync(user.Email, token);
     }
 
     /// <summary>

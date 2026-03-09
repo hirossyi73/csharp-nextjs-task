@@ -32,7 +32,7 @@ public class EmailService : EmailServiceInterface
         var body = $"""
             TaskFlow にご登録いただきありがとうございます。
 
-            以下のリンクをクリックしてメールアドレスを確認してください。
+            以下のリンクをクリックしてパスワードを設定し、登録を完了してください。
 
             {verifyUrl}
 

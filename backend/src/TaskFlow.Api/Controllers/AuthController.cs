@@ -30,7 +30,7 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
-        var result = await _authService.RegisterAsync(request.Email, request.Password);
+        var result = await _authService.RegisterAsync(request.Email);
 
         if (result.IsFailure)
         {
@@ -39,7 +39,7 @@ public class AuthController : ControllerBase
 
         return Ok(new MessageResponse
         {
-            Message = "確認メールを送信しました。メール内のリンクをクリックして登録を完了してください。"
+            Message = "確認メールを送信しました。メール内のリンクをクリックしてパスワードを設定し、登録を完了してください。"
         });
     }
 
@@ -49,7 +49,7 @@ public class AuthController : ControllerBase
     [HttpPost("verify-email")]
     public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequest request)
     {
-        var result = await _authService.VerifyEmailAsync(request.Token);
+        var result = await _authService.VerifyEmailAsync(request.Token, request.Password);
 
         if (result.IsFailure)
         {
@@ -58,7 +58,7 @@ public class AuthController : ControllerBase
 
         return Ok(new MessageResponse
         {
-            Message = "メール確認が完了しました。ログインしてください。"
+            Message = "登録が完了しました。ログインしてください。"
         });
     }
 
@@ -176,6 +176,8 @@ public class AuthController : ControllerBase
         {
             "AUTH_CREDENTIALS_INVALID" => StatusCodes.Status401Unauthorized,
             "AUTH_EMAIL_NOT_VERIFIED" => StatusCodes.Status403Forbidden,
+            "AUTH_REGISTRATION_INCOMPLETE" => StatusCodes.Status403Forbidden,
+            "AUTH_PASSWORD_REQUIRED" => StatusCodes.Status422UnprocessableEntity,
             "AUTH_TOKEN_INVALID" => StatusCodes.Status401Unauthorized,
             "AUTH_TOKEN_EXPIRED" => StatusCodes.Status401Unauthorized,
             "AUTH_TOKEN_ALREADY_USED" => StatusCodes.Status401Unauthorized,

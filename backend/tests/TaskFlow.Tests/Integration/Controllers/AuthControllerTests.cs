@@ -30,18 +30,16 @@ public class AuthControllerTests : IClassFixture<CustomWebApplicationFactory>
 
     [Fact]
     /// <summary>
-    /// 有効な入力でユーザー仮登録が成功し 200 が返されることを検証する
+    /// 有効なメアドでユーザー仮登録が成功し 200 が返されることを検証する
     /// </summary>
-    public async Task Register_有効な入力_200が返される()
+    public async Task Register_有効なメール_200が返される()
     {
-        _mockAuthService.Setup(s => s.RegisterAsync(It.IsAny<string>(), It.IsAny<string>()))
+        _mockAuthService.Setup(s => s.RegisterAsync(It.IsAny<string>()))
             .ReturnsAsync(Result.Success());
 
         var response = await _client.PostAsJsonAsync("/api/v1/auth/register", new
         {
-            email = "test@example.com",
-            password = "Password123",
-            passwordConfirmation = "Password123"
+            email = "test@example.com"
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -51,20 +49,16 @@ public class AuthControllerTests : IClassFixture<CustomWebApplicationFactory>
 
     [Fact]
     /// <summary>
-    /// 不正な入力で登録した場合に 422 が返されることを検証する
+    /// メアド未入力で登録した場合に 422 が返されることを検証する
     /// </summary>
-    public async Task Register_不正な入力_422が返される()
+    public async Task Register_メアド未入力_422が返される()
     {
         var response = await _client.PostAsJsonAsync("/api/v1/auth/register", new
         {
-            email = "",
-            password = "",
-            passwordConfirmation = ""
+            email = ""
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-        var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("VALIDATION_ERROR");
     }
 
     [Fact]

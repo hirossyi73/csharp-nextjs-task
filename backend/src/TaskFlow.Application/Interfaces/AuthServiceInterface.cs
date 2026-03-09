@@ -9,14 +9,14 @@ namespace TaskFlow.Application.Interfaces;
 public interface AuthServiceInterface
 {
     /// <summary>
-    /// ユーザーを仮登録し、確認メールを送信する
+    /// メアドのみで仮登録し、確認メールを送信する。仮登録済みの場合は再送信する
     /// </summary>
-    Task<Result> RegisterAsync(string email, string password);
+    Task<Result> RegisterAsync(string email);
 
     /// <summary>
-    /// メール確認トークンを検証し、ユーザーを本登録する
+    /// メール確認トークンを検証し、パスワードを設定して本登録する
     /// </summary>
-    Task<Result> VerifyEmailAsync(string token);
+    Task<Result> VerifyEmailAsync(string token, string? password);
 
     /// <summary>
     /// ログイン認証を行い、アクセストークンとリフレッシュトークンを返す

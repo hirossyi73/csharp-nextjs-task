@@ -48,4 +48,21 @@ public class EmailVerificationTokenRepository : EmailVerificationTokenRepository
         _context.EmailVerificationTokens.Update(token);
         await _context.SaveChangesAsync();
     }
+
+    /// <summary>
+    /// 指定ユーザーの未使用トークンを全て無効化する
+    /// </summary>
+    public async Task InvalidateByUserIdAsync(Guid userId)
+    {
+        var tokens = await _context.EmailVerificationTokens
+            .Where(t => t.UserId == userId && !t.IsUsed)
+            .ToListAsync();
+
+        foreach (var token in tokens)
+        {
+            token.IsUsed = true;
+        }
+
+        await _context.SaveChangesAsync();
+    }
 }
