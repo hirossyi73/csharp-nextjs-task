@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TaskFlow.Api.Dtos.Auth;
 using TaskFlow.Application.Common;
-using TaskFlow.Application.Services;
+using TaskFlow.Application.Interfaces;
 
 namespace TaskFlow.Api.Controllers;
 
@@ -14,12 +14,12 @@ namespace TaskFlow.Api.Controllers;
 [Route("api/v1/auth")]
 public class AuthController : ControllerBase
 {
-    private readonly AuthService _authService;
+    private readonly AuthServiceInterface _authService;
 
     /// <summary>
     /// AuthController を生成する
     /// </summary>
-    public AuthController(AuthService authService)
+    public AuthController(AuthServiceInterface authService)
     {
         _authService = authService;
     }

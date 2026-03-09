@@ -25,7 +25,7 @@ builder.Services.AddScoped<PasswordResetTokenRepositoryInterface, PasswordResetT
 builder.Services.AddScoped<PasswordHasherInterface, PasswordHasher>();
 builder.Services.AddScoped<JwtServiceInterface, JwtService>();
 builder.Services.AddScoped<EmailServiceInterface, EmailService>();
-builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<AuthServiceInterface, AuthService>();
 
 // Controllers
 builder.Services.AddControllers();

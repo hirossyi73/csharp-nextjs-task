@@ -9,7 +9,7 @@ namespace TaskFlow.Application.Services;
 /// <summary>
 /// 認証に関するビジネスロジックを提供するサービス
 /// </summary>
-public class AuthService
+public class AuthService : AuthServiceInterface
 {
     private readonly UserRepositoryInterface _userRepository;
     private readonly RefreshTokenRepositoryInterface _refreshTokenRepository;
