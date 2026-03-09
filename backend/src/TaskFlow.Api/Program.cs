@@ -103,3 +103,6 @@ app.MapControllers();
 app.MapGet("/", () => "TaskFlow API");
 
 app.Run();
+
+// WebApplicationFactory からアクセスするために必要
+public partial class Program { }
