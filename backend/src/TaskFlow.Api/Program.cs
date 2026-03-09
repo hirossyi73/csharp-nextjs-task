@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using TaskFlow.Api.Middleware;
@@ -30,7 +31,32 @@ builder.Services.AddScoped<AuthServiceInterface, AuthService>();
 builder.Services.AddScoped<TaskServiceInterface, TaskService>();
 
 // Controllers
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        // FW 標準の ProblemDetails ではなく、アプリ統一のエラー形式で返す
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var details = context.ModelState
+                .Where(e => e.Value?.Errors.Count > 0)
+                .ToDictionary(
+                    e => e.Key,
+                    e => e.Value!.Errors.Select(err => err.ErrorMessage).ToArray()
+                );
+
+            var response = new
+            {
+                error = new
+                {
+                    code = "VALIDATION_ERROR",
+                    message = "入力内容に誤りがあります",
+                    details
+                }
+            };
+
+            return new UnprocessableEntityObjectResult(response);
+        };
+    });
 
 // JWT 認証
 var jwtSecretKey = builder.Configuration["Jwt:SecretKey"]
