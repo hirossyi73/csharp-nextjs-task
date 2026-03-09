@@ -62,7 +62,7 @@ services:
       Email__SmtpHost: mailpit
       Email__SmtpPort: 1025
       Email__FromAddress: ${EMAIL_FROM_ADDRESS:-noreply@taskflow.local}
-      Frontend__BaseUrl: http://localhost:${FRONTEND_PORT:-3000}
+      App__FrontendUrl: http://localhost:${FRONTEND_PORT:-3000}
     volumes:
       - ./backend:/app
     networks:

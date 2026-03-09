@@ -272,14 +272,19 @@ public class AuthService : AuthServiceInterface
     }
 
     /// <summary>
-    /// セキュアなランダムトークンを生成する
+    /// URL セーフなセキュアランダムトークンを生成する
     /// </summary>
     private static string generateSecureToken()
     {
         var randomBytes = new byte[32];
         using var rng = RandomNumberGenerator.Create();
         rng.GetBytes(randomBytes);
-        return Convert.ToBase64String(randomBytes);
+
+        // URL クエリパラメータで安全に使えるよう、Base64URL 形式に変換する
+        return Convert.ToBase64String(randomBytes)
+            .Replace('+', '-')
+            .Replace('/', '_')
+            .TrimEnd('=');
     }
 
     /// <summary>

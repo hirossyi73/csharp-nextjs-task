@@ -26,7 +26,7 @@ public class EmailService : EmailServiceInterface
     public async Task SendEmailVerificationAsync(string toEmail, string token)
     {
         var frontendUrl = _configuration["App:FrontendUrl"] ?? "http://localhost:3000";
-        var verifyUrl = $"{frontendUrl}/verify-email?token={token}";
+        var verifyUrl = $"{frontendUrl}/verify-email?token={Uri.EscapeDataString(token)}";
 
         var subject = "【TaskFlow】メールアドレスの確認";
         var body = $"""
@@ -49,7 +49,7 @@ public class EmailService : EmailServiceInterface
     public async Task SendPasswordResetAsync(string toEmail, string token)
     {
         var frontendUrl = _configuration["App:FrontendUrl"] ?? "http://localhost:3000";
-        var resetUrl = $"{frontendUrl}/reset-password?token={token}";
+        var resetUrl = $"{frontendUrl}/reset-password?token={Uri.EscapeDataString(token)}";
 
         var subject = "【TaskFlow】パスワードリセット";
         var body = $"""
