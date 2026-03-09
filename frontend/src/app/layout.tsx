@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import ThemeRegistry from "@/components/common/ThemeRegistry";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 export const metadata: Metadata = {
   title: "TaskFlow",
   description: "タスク管理アプリケーション",
 };
 
-/** アプリケーションのルートレイアウト。MUI テーマを全ページに適用する */
+/** アプリケーションのルートレイアウト。MUI テーマと認証プロバイダーを全ページに適用する */
 export default function RootLayout({
   children,
 }: {
@@ -15,7 +16,9 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <body>
-        <ThemeRegistry>{children}</ThemeRegistry>
+        <ThemeRegistry>
+          <AuthProvider>{children}</AuthProvider>
+        </ThemeRegistry>
       </body>
     </html>
   );
