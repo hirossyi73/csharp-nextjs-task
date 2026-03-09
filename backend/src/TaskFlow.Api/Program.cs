@@ -20,12 +20,14 @@ builder.Services.AddScoped<UserRepositoryInterface, UserRepository>();
 builder.Services.AddScoped<RefreshTokenRepositoryInterface, RefreshTokenRepository>();
 builder.Services.AddScoped<EmailVerificationTokenRepositoryInterface, EmailVerificationTokenRepository>();
 builder.Services.AddScoped<PasswordResetTokenRepositoryInterface, PasswordResetTokenRepository>();
+builder.Services.AddScoped<TaskRepositoryInterface, TaskRepository>();
 
 // Services
 builder.Services.AddScoped<PasswordHasherInterface, PasswordHasher>();
 builder.Services.AddScoped<JwtServiceInterface, JwtService>();
 builder.Services.AddScoped<EmailServiceInterface, EmailService>();
 builder.Services.AddScoped<AuthServiceInterface, AuthService>();
+builder.Services.AddScoped<TaskServiceInterface, TaskService>();
 
 // Controllers
 builder.Services.AddControllers();
