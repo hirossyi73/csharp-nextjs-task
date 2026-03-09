@@ -233,7 +233,6 @@ namespace TaskFlow.Infrastructure.Migrations
                         .HasColumnName("is_email_verified");
 
                     b.Property<string>("PasswordHash")
-                        .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
                         .HasColumnName("password_hash");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Alert,
@@ -23,6 +23,21 @@ import {
 
 /** パスワード再設定ページ */
 export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={
+      <Container maxWidth="sm">
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+          <CircularProgress />
+        </Box>
+      </Container>
+    }>
+      <ResetPasswordContent />
+    </Suspense>
+  );
+}
+
+/** パスワード再設定の内部コンポーネント */
+function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
   const [newPassword, setNewPassword] = useState("");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Alert,
@@ -23,6 +23,21 @@ import {
 
 /** メール確認・パスワード設定ページ */
 export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={
+      <Container maxWidth="sm">
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+          <CircularProgress />
+        </Box>
+      </Container>
+    }>
+      <VerifyEmailContent />
+    </Suspense>
+  );
+}
+
+/** メール確認・パスワード設定の内部コンポーネント */
+function VerifyEmailContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
   const [password, setPassword] = useState("");

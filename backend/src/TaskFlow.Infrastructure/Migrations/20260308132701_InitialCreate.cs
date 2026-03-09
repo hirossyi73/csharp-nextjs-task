@@ -17,7 +17,7 @@ namespace TaskFlow.Infrastructure.Migrations
                 {
                     id = table.Column<Guid>(type: "uuid", nullable: false, defaultValueSql: "gen_random_uuid()"),
                     email = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
-                    password_hash = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    password_hash = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     is_email_verified = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
                     created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "NOW()"),
                     updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "NOW()")
