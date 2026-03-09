@@ -1,0 +1,630 @@
+openapi: 3.0.3
+info:
+  title: TaskFlow API
+  description: タスク管理アプリケーションの REST API
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5000
+    description: 開発環境
+
+paths:
+  # ========== 認証 API ==========
+
+  /api/v1/auth/register:
+    post:
+      tags:
+        - Auth
+      summary: ユーザー仮登録
+      description: メールアドレスとパスワードでユーザーを仮登録し、確認メールを送信する
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "200":
+          description: 仮登録成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "409":
+          description: メールアドレスが既に登録済み
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/auth/verify-email:
+    post:
+      tags:
+        - Auth
+      summary: メール確認（本登録）
+      description: 確認メール内のトークンを使用してメールアドレスを検証し、本登録を完了する
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyEmailRequest"
+      responses:
+        "200":
+          description: メール確認成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          description: トークンが無効または期限切れ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/auth/login:
+    post:
+      tags:
+        - Auth
+      summary: ログイン
+      description: メールアドレスとパスワードで認証し、アクセストークンを返す。リフレッシュトークンは httpOnly Cookie に設定される
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: ログイン成功
+          headers:
+            Set-Cookie:
+              description: "リフレッシュトークン（httpOnly Cookie）"
+              schema:
+                type: string
+                example: "refreshToken=abc123; Path=/api/v1/auth; HttpOnly; SameSite=Lax; Max-Age=604800"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: 認証情報が無効
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: メール未確認
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: ログアウト
+      description: 現在のユーザーの全リフレッシュトークンを無効化し、Cookie を削除する
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: ログアウト成功
+        "401":
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/auth/refresh:
+    post:
+      tags:
+        - Auth
+      summary: トークンリフレッシュ
+      description: httpOnly Cookie のリフレッシュトークンを使用して新しいアクセストークンを取得する。トークンローテーションにより新しいリフレッシュトークンも発行される
+      parameters:
+        - in: cookie
+          name: refreshToken
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: リフレッシュ成功
+          headers:
+            Set-Cookie:
+              description: "新しいリフレッシュトークン（httpOnly Cookie）"
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: リフレッシュトークンが無効、期限切れ、または既に使用済み
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/auth/forgot-password:
+    post:
+      tags:
+        - Auth
+      summary: パスワードリセット要求
+      description: パスワードリセット用のメールを送信する。ユーザーが存在しない場合でも同じレスポンスを返す（セキュリティ上の理由）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+      responses:
+        "200":
+          description: リセットメール送信（ユーザーの存在有無に関わらず成功を返す）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /api/v1/auth/reset-password:
+    post:
+      tags:
+        - Auth
+      summary: パスワード再設定
+      description: パスワードリセットトークンを使用して新しいパスワードを設定する。全リフレッシュトークンも無効化される
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+      responses:
+        "200":
+          description: パスワード再設定成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          description: トークンが無効または期限切れ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ========== タスク API ==========
+
+  /api/v1/tasks:
+    get:
+      tags:
+        - Tasks
+      summary: タスク一覧取得
+      description: 認証ユーザーのタスク一覧をページネーション付きで取得する
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+          description: ページ番号
+        - in: query
+          name: perPage
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+          description: 1ページあたりの件数（最大100）
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum:
+              - NOT_STARTED
+              - IN_PROGRESS
+              - COMPLETED
+          description: ステータスでフィルタ
+      responses:
+        "200":
+          description: タスク一覧
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskListResponse"
+        "401":
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      tags:
+        - Tasks
+      summary: タスク作成
+      description: 新しいタスクを作成する。初期ステータスは NOT_STARTED
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTaskRequest"
+      responses:
+        "201":
+          description: タスク作成成功
+          headers:
+            Location:
+              description: 作成されたタスクの URI
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskResponse"
+        "401":
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/tasks/{id}:
+    get:
+      tags:
+        - Tasks
+      summary: タスク詳細取得
+      description: 指定されたタスクの詳細を取得する。自分のタスクのみ取得可能
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: タスク ID
+      responses:
+        "200":
+          description: タスク詳細
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskResponse"
+        "401":
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: タスクが見つからない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    put:
+      tags:
+        - Tasks
+      summary: タスク更新
+      description: タスクのタイトル、説明、ステータスを更新する。自分のタスクのみ更新可能
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: タスク ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTaskRequest"
+      responses:
+        "200":
+          description: タスク更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskResponse"
+        "401":
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: タスクが見つからない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: バリデーションエラーまたは無効なステータス
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - Tasks
+      summary: タスク削除
+      description: タスクを削除する。自分のタスクのみ削除可能
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: タスク ID
+      responses:
+        "204":
+          description: タスク削除成功
+        "401":
+          description: 未認証
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: タスクが見つからない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ========== 認証リクエスト ==========
+
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - passwordConfirmation
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: "user@example.com"
+        password:
+          type: string
+          minLength: 8
+          description: "大文字・小文字・数字を含む8文字以上"
+          example: "Password1"
+        passwordConfirmation:
+          type: string
+          example: "Password1"
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        password:
+          type: string
+          example: "Password1"
+
+    VerifyEmailRequest:
+      type: object
+      required:
+        - token
+      properties:
+        token:
+          type: string
+          description: メール確認トークン
+
+    ForgotPasswordRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+
+    ResetPasswordRequest:
+      type: object
+      required:
+        - token
+        - newPassword
+        - newPasswordConfirmation
+      properties:
+        token:
+          type: string
+          description: パスワードリセットトークン
+        newPassword:
+          type: string
+          minLength: 8
+          description: "大文字・小文字・数字を含む8文字以上"
+          example: "NewPassword1"
+        newPasswordConfirmation:
+          type: string
+          example: "NewPassword1"
+
+    # ========== 認証レスポンス ==========
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: JWT アクセストークン
+        expiresIn:
+          type: integer
+          description: アクセストークンの有効期限（秒）
+          example: 900
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "操作が完了しました"
+
+    # ========== タスクリクエスト ==========
+
+    CreateTaskRequest:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          maxLength: 200
+          example: "レポートを作成する"
+        description:
+          type: string
+          nullable: true
+          example: "月次レポートを作成して提出する"
+
+    UpdateTaskRequest:
+      type: object
+      required:
+        - title
+        - status
+      properties:
+        title:
+          type: string
+          maxLength: 200
+          example: "レポートを作成する"
+        description:
+          type: string
+          nullable: true
+          example: "月次レポートを作成して提出する"
+        status:
+          type: string
+          enum:
+            - NOT_STARTED
+            - IN_PROGRESS
+            - COMPLETED
+          example: "IN_PROGRESS"
+
+    # ========== タスクレスポンス ==========
+
+    TaskResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        title:
+          type: string
+          example: "レポートを作成する"
+        description:
+          type: string
+          nullable: true
+          example: "月次レポートを作成して提出する"
+        status:
+          type: string
+          enum:
+            - NOT_STARTED
+            - IN_PROGRESS
+            - COMPLETED
+          example: "NOT_STARTED"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-03-09T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2026-03-09T10:00:00Z"
+
+    TaskListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskResponse"
+        pagination:
+          $ref: "#/components/schemas/PaginationResponse"
+
+    PaginationResponse:
+      type: object
+      properties:
+        currentPage:
+          type: integer
+          example: 1
+        perPage:
+          type: integer
+          example: 20
+        totalCount:
+          type: integer
+          example: 42
+        totalPages:
+          type: integer
+          example: 3
+
+    # ========== エラーレスポンス ==========
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: エラーコード（CATEGORY_DETAIL 形式）
+              example: "VALIDATION_ERROR"
+            message:
+              type: string
+              description: エラーメッセージ
+              example: "入力内容に誤りがあります"
+            details:
+              type: object
+              nullable: true
+              description: フィールドごとのバリデーションエラー詳細
+              additionalProperties:
+                type: array
+                items:
+                  type: string
+              example:
+                email:
+                  - "メールアドレスの形式が正しくありません"
