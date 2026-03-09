@@ -8,4 +8,4 @@ ENV DOTNET_USE_POLLING_FILE_WATCHER=true
 
 EXPOSE 5000
 
-ENTRYPOINT ["dotnet", "watch", "run", "--project", "src/TaskFlow.Api/TaskFlow.Api.csproj"]
+ENTRYPOINT ["dotnet", "watch", "run", "--project", "src/TaskFlow.Api/TaskFlow.Api.csproj", "--no-launch-profile"]

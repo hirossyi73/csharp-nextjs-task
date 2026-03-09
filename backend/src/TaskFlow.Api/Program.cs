@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Serilog;
 using TaskFlow.Api.Middleware;
 using TaskFlow.Application.Interfaces;
 using TaskFlow.Application.Services;
@@ -11,6 +12,10 @@ using TaskFlow.Infrastructure.Repositories;
 using TaskFlow.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Serilog 構造化ログ
+builder.Host.UseSerilog((context, configuration) =>
+    configuration.ReadFrom.Configuration(context.Configuration));
 
 // DbContext
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -62,6 +67,14 @@ builder.Services.AddControllers()
 var jwtSecretKey = builder.Configuration["Jwt:SecretKey"]
     ?? throw new InvalidOperationException("Jwt:SecretKey が設定されていません");
 
+// 本番環境でデフォルトの開発用キーが使われていないことを検証する
+if (!builder.Environment.IsDevelopment()
+    && jwtSecretKey == "ThisIsADevelopmentSecretKeyThatShouldBeAtLeast32CharactersLong!")
+{
+    throw new InvalidOperationException(
+        "本番環境では JWT_SECRET_KEY に安全なランダム値を設定してください。開発用デフォルト値は使用できません。");
+}
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -94,6 +107,7 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+app.UseSerilogRequestLogging();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseCors();
 app.UseAuthentication();

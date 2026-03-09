@@ -192,11 +192,14 @@ public class AuthController : ControllerBase
     /// </summary>
     private void setRefreshTokenCookie(string refreshToken)
     {
+        var isDevelopment = HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment();
+
         var cookieOptions = new CookieOptions
         {
             HttpOnly = true,
-            Secure = false, // 開発環境では false（本番では true にする）
-            SameSite = SameSiteMode.Lax,
+            Secure = !isDevelopment,
+            // 開発環境はフロントエンドとバックエンドが異なるポート（クロスオリジン）のため Lax が必要
+            SameSite = isDevelopment ? SameSiteMode.Lax : SameSiteMode.Strict,
             Path = "/api/v1/auth",
             MaxAge = TimeSpan.FromDays(7)
         };
