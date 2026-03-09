@@ -107,6 +107,25 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// 起動時にマイグレーション適用 + シードデータ投入
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    try
+    {
+        db.Database.Migrate();
+    }
+    catch (InvalidOperationException)
+    {
+        // InMemory DB（テスト環境等）ではマイグレーション非対応のためスキップ
+    }
+
+    var seeder = new DatabaseSeeder(
+        db,
+        scope.ServiceProvider.GetRequiredService<ILogger<DatabaseSeeder>>());
+    await seeder.SeedAsync();
+}
+
 app.UseSerilogRequestLogging();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseCors();
